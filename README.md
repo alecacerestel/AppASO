@@ -100,16 +100,40 @@ etl_pipeline.py             # Main execution script
 
 ## Local Testing
 
+### Setup
+
+1. **Install dependencies:**
 ```powershell
 pip install -r requirements.txt
+```
 
-$env:GCP_JSON = Get-Content "Secret\datapipeline-stage-089124019a24.json" -Raw
-$env:EMAIL_USER = "your.email@gmail.com"
-$env:EMAIL_PASSWORD = "your_app_password"
-$env:EMAIL_RECIPIENT = "recipient@example.com"
+2. **Add credentials:**
+   - Create `Secret/` folder
+   - Download service account JSON from Google Cloud Console
+   - Save as `Secret/datapipeline-stage-089124019a24.json`
 
+3. **Run pipeline:**
+```powershell
+# Set credentials and run
+$env:GCP_JSON = (Get-Content "Secret\datapipeline-stage-089124019a24.json" -Raw)
 python etl_pipeline.py
 ```
+
+Or use the test script:
+```powershell
+.\test_local.ps1
+```
+
+### Manual Execution from GitHub
+
+1. Go to repository **Actions** tab
+2. Select **Daily ETL Pipeline**
+3. Click **Run workflow** button
+4. Click green **Run workflow** button
+
+### Automatic Execution
+
+Pipeline runs **automatically every day at 9:00 AM Paris time** via GitHub Actions schedule.
 
 ## Control Pipeline Execution
 
