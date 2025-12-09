@@ -24,7 +24,6 @@ class Settings:
     EMAIL_RECIPIENT: str = os.getenv("EMAIL_RECIPIENT", "")
     
     # Google Drive structure constants
-    ROOT_FOLDER_NAME: str = "AppASO"
     CONTROL_PANEL_NAME: str = "00_Control_Panel"
     CONTROL_SHEET_NAME: str = "Config"
     CONTROL_CELL: str = "B3"

@@ -1,10 +1,11 @@
 """
 Data extraction module.
-Reads Excel/CSV files from Google Drive RAW folder.
+Downloads Excel files from Google Drive RAW folder and saves them locally.
 """
 
 import pandas as pd
 import io
+import os
 from typing import Dict, Tuple
 from googleapiclient.http import MediaIoBaseDownload
 
@@ -15,7 +16,7 @@ from src.etl.column_mapping import ColumnMapper
 class DataExtractor:
     """
     Handles data extraction from Google Drive RAW folder.
-    Reads 6 Excel files: keywords, installs, and users (Apple + Google each).
+    Downloads 6 Excel files and saves them to data/raw/ directory.
     """
     
     def __init__(self, drive_service):
@@ -28,6 +29,10 @@ class DataExtractor:
         self.drive_service = drive_service
         self.raw_folder_id = settings.RAW_DATA_FOLDER_ID
         self.file_patterns = ColumnMapper.FILE_PATTERNS
+        self.local_data_dir = "data/raw"
+        
+        # Create local directory if it doesn't exist
+        os.makedirs(self.local_data_dir, exist_ok=True)
     
     def extract_all_data(self) -> Dict[str, Tuple[pd.DataFrame, pd.DataFrame]]:
         """
@@ -50,6 +55,7 @@ class DataExtractor:
         installs_apple, installs_google = self._extract_installs(file_list)
         users_apple, users_google = self._extract_users(file_list)
         
+        print(f"[EXTRACTION] All files downloaded to {self.local_data_dir}/")
         print(f"[EXTRACTION] Keywords - Apple: {len(keywords_apple)} rows, Google: {len(keywords_google)} rows")
         print(f"[EXTRACTION] Installs - Apple: {len(installs_apple)} rows, Google: {len(installs_google)} rows")
         print(f"[EXTRACTION] Users - Apple: {len(users_apple)} rows, Google: {len(users_google)} rows")
@@ -87,18 +93,25 @@ class DataExtractor:
         except Exception as e:
             raise Exception(f"Error listing files in RAW folder: {str(e)}")
     
-    def _download_file_as_dataframe(self, file_id: str, filename: str) -> pd.DataFrame:
+    def _download_and_save_file(self, file_id: str, filename: str) -> str:
         """
-        Download a file from Drive and convert to DataFrame.
+        Download a file from Drive and save it locally.
         
         Args:
             file_id: Google Drive file ID
-            filename: Name of the file (to determine format)
+            filename: Name of the file to save
             
         Returns:
-            DataFrame with file contents
+            Path to the saved file
+            
+        Raises:
+            Exception: If download fails
         """
+        local_path = os.path.join(self.local_data_dir, filename)
+        
         try:
+            print(f"[EXTRACTION] Downloading {filename}...")
+            
             request = self.drive_service.files().get_media(fileId=file_id)
             file_buffer = io.BytesIO()
             downloader = MediaIoBaseDownload(file_buffer, request)
@@ -107,44 +120,45 @@ class DataExtractor:
             while not done:
                 status, done = downloader.next_chunk()
             
-            file_buffer.seek(0)
+            # Save to local file
+            with open(local_path, 'wb') as f:
+                f.write(file_buffer.getvalue())
             
-            # Read based on file extension
-            if filename.endswith('.xlsx') or filename.endswith('.xls'):
-                df = pd.read_excel(file_buffer)
-            elif filename.endswith('.csv'):
-                df = pd.read_csv(file_buffer)
-            else:
-                raise Exception(f"Unsupported file format: {filename}")
-            
-            return df
+            return local_path
             
         except Exception as e:
             raise Exception(f"Error downloading file '{filename}': {str(e)}")
     
-    def _find_file_by_pattern(self, file_list: Dict[str, str], pattern: str) -> Tuple[str, str]:
+    def _read_local_file(self, filepath: str) -> pd.DataFrame:
         """
-        Find a file in the list that matches the pattern.
+        Read a local Excel or CSV file into a DataFrame.
         
         Args:
-            file_list: Dictionary of filename -> file_id
-            pattern: Pattern to search for in filename
+            filepath: Path to the local file
             
         Returns:
-            Tuple of (filename, file_id)
+            DataFrame with file contents
             
         Raises:
-            Exception: If file not found
+            Exception: If file cannot be read
         """
-        for filename, file_id in file_list.items():
-            if pattern in filename:
-                return filename, file_id
-        
-        raise Exception(f"File matching pattern '{pattern}' not found in RAW folder")
+        try:
+            if filepath.endswith('.xlsx') or filepath.endswith('.xls'):
+                df = pd.read_excel(filepath)
+            elif filepath.endswith('.csv'):
+                df = pd.read_csv(filepath)
+            else:
+                raise Exception(f"Unsupported file format: {filepath}")
+            
+            return df
+            
+        except Exception as e:
+            raise Exception(f"Error reading file '{os.path.basename(filepath)}': {str(e)}")
     
     def _extract_keywords(self, file_list: Dict[str, str]) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """
         Extract keywords data from both platforms.
+        Downloads files and reads them from local storage.
         
         Args:
             file_list: Dictionary of available files
@@ -156,19 +170,22 @@ class DataExtractor:
         apple_filename, apple_id = self._find_file_by_pattern(
             file_list, self.file_patterns["keywords_apple"]
         )
-        apple_df = self._download_file_as_dataframe(apple_id, apple_filename)
+        apple_path = self._download_and_save_file(apple_id, apple_filename)
+        apple_df = self._read_local_file(apple_path)
         
         # Google keywords
         google_filename, google_id = self._find_file_by_pattern(
             file_list, self.file_patterns["keywords_google"]
         )
-        google_df = self._download_file_as_dataframe(google_id, google_filename)
+        google_path = self._download_and_save_file(google_id, google_filename)
+        google_df = self._read_local_file(google_path)
         
         return apple_df, google_df
     
     def _extract_installs(self, file_list: Dict[str, str]) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """
         Extract installs data from both platforms.
+        Downloads files and reads them from local storage.
         
         Args:
             file_list: Dictionary of available files
@@ -180,12 +197,44 @@ class DataExtractor:
         apple_filename, apple_id = self._find_file_by_pattern(
             file_list, self.file_patterns["installs_apple"]
         )
-        apple_df = self._download_file_as_dataframe(apple_id, apple_filename)
+        apple_path = self._download_and_save_file(apple_id, apple_filename)
+        apple_df = self._read_local_file(apple_path)
         
         # Google installs
         google_filename, google_id = self._find_file_by_pattern(
             file_list, self.file_patterns["installs_google"]
         )
+        google_path = self._download_and_save_file(google_id, google_filename)
+        google_df = self._read_local_file(google_path)
+        
+        return apple_df, google_df
+    
+    def _extract_users(self, file_list: Dict[str, str]) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        """
+        Extract active users data from both platforms.
+        Downloads files and reads them from local storage.
+        
+        Args:
+            file_list: Dictionary of available files
+            
+        Returns:
+            Tuple of (apple_df, google_df)
+        """
+        # Apple users
+        apple_filename, apple_id = self._find_file_by_pattern(
+            file_list, self.file_patterns["users_apple"]
+        )
+        apple_path = self._download_and_save_file(apple_id, apple_filename)
+        apple_df = self._read_local_file(apple_path)
+        
+        # Google users
+        google_filename, google_id = self._find_file_by_pattern(
+            file_list, self.file_patterns["users_google"]
+        )
+        google_path = self._download_and_save_file(google_id, google_filename)
+        google_df = self._read_local_file(google_path)
+        
+        return apple_df, google_df
         google_df = self._download_file_as_dataframe(google_id, google_filename)
         
         return apple_df, google_df

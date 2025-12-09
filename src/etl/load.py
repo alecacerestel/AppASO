@@ -62,14 +62,10 @@ class DataLoader:
             print("[LOAD] Writing to MASTER_DATA_CLEAN Google Sheet...")
             
             # Find the MASTER_DATA_CLEAN sheet
-            root_id = self.drive_service.get_root_folder_id()
-            master_file_id = self.drive_service.find_file_by_name(
-                settings.MASTER_DATA_SHEET,
-                parent_id=root_id
-            )
+            master_file_id = self.drive_service.find_file_by_name(settings.MASTER_DATA_SHEET)
             
             if not master_file_id:
-                raise Exception(f"Sheet '{settings.MASTER_DATA_SHEET}' not found in root folder")
+                raise Exception(f"Sheet '{settings.MASTER_DATA_SHEET}' not found")
             
             spreadsheet = self.drive_service.gspread_client.open_by_key(master_file_id)
             

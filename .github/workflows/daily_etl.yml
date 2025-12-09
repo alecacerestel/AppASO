@@ -17,6 +17,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
       
+      - name: Create data directories
+        run: |
+          mkdir -p data/raw
+          mkdir -p data/processed
+      
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -36,6 +41,16 @@ jobs:
           EMAIL_RECIPIENT: ${{ secrets.EMAIL_RECIPIENT }}
         run: |
           python etl_pipeline.py
+      
+      - name: Upload downloaded files on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: downloaded-data-${{ github.run_number }}
+          path: |
+            data/raw/*.xlsx
+            data/raw/*.csv
+          retention-days: 7
       
       - name: Upload logs on failure
         if: failure()

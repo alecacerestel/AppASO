@@ -28,7 +28,6 @@ class DriveService:
         """
         self.gspread_client = gspread_client
         self.drive_service = drive_service
-        self._folder_cache: Dict[str, str] = {}
     
     def find_folder_by_name(self, folder_name: str, parent_id: Optional[str] = None) -> Optional[str]:
         """
@@ -41,10 +40,6 @@ class DriveService:
         Returns:
             Folder ID if found, None otherwise
         """
-        cache_key = f"{parent_id}:{folder_name}"
-        if cache_key in self._folder_cache:
-            return self._folder_cache[cache_key]
-        
         query = f"name='{folder_name}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
         if parent_id:
             query += f" and '{parent_id}' in parents"
@@ -58,12 +53,7 @@ class DriveService:
             ).execute()
             
             files = results.get("files", [])
-            if files:
-                folder_id = files[0]["id"]
-                self._folder_cache[cache_key] = folder_id
-                return folder_id
-            
-            return None
+            return files[0]["id"] if files else None
             
         except Exception as e:
             raise Exception(f"Error finding folder '{folder_name}': {str(e)}")
@@ -97,21 +87,6 @@ class DriveService:
         except Exception as e:
             raise Exception(f"Error finding file '{file_name}': {str(e)}")
     
-    def get_root_folder_id(self) -> str:
-        """
-        Get the ID of the AppASO root folder.
-        
-        Returns:
-            Root folder ID
-            
-        Raises:
-            Exception: If root folder is not found
-        """
-        folder_id = self.find_folder_by_name(settings.ROOT_FOLDER_NAME)
-        if not folder_id:
-            raise Exception(f"Root folder '{settings.ROOT_FOLDER_NAME}' not found. Make sure it's shared with the service account.")
-        return folder_id
-    
     def check_control_panel(self) -> bool:
         """
         Check if the control panel allows pipeline execution.
@@ -123,8 +98,7 @@ class DriveService:
             Exception: If control panel cannot be accessed
         """
         try:
-            root_id = self.get_root_folder_id()
-            control_file_id = self.find_file_by_name(settings.CONTROL_PANEL_NAME, root_id)
+            control_file_id = self.find_file_by_name(settings.CONTROL_PANEL_NAME)
             
             if not control_file_id:
                 raise Exception(f"Control panel '{settings.CONTROL_PANEL_NAME}' not found")
@@ -153,8 +127,7 @@ class DriveService:
             Exception: If save fails
         """
         try:
-            root_id = self.get_root_folder_id()
-            data_lake_id = self.find_folder_by_name(settings.DATA_LAKE_FOLDER, root_id)
+            data_lake_id = self.find_folder_by_name(settings.DATA_LAKE_FOLDER)
             
             if not data_lake_id:
                 raise Exception(f"Folder '{settings.DATA_LAKE_FOLDER}' not found")
