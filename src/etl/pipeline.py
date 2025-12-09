@@ -1,6 +1,6 @@
 """
 ETL Pipeline orchestration module.
-Coordinates the Extract, Transform, Load process.
+Coordinates the Extract, Transform, Load process for ASO data.
 """
 
 from datetime import datetime
@@ -14,6 +14,7 @@ from src.services import DriveService
 class ETLPipeline:
     """
     Orchestrates the complete ETL pipeline execution.
+    Processes keywords, installs, and active users data from Apple and Google.
     """
     
     def __init__(self, drive_service: DriveService):
@@ -24,7 +25,7 @@ class ETLPipeline:
             drive_service: Authenticated Drive service instance
         """
         self.drive_service = drive_service
-        self.extractor = DataExtractor()
+        self.extractor = DataExtractor(drive_service.drive_service)
         self.transformer = DataTransformer()
         self.loader = DataLoader(drive_service)
     
@@ -37,21 +38,28 @@ class ETLPipeline:
         """
         execution_date = datetime.now()
         
-        print("Starting ETL Pipeline execution...")
-        print(f"Execution date: {execution_date.strftime('%Y-%m-%d %H:%M:%S')}")
+        print("="*70)
+        print("AppASO ETL Pipeline - ASO Data Processing")
+        print("="*70)
+        print(f"Execution started: {execution_date.strftime('%Y-%m-%d %H:%M:%S')}")
         
-        # Step 1: Extract
-        print("\n[1/3] Extracting data...")
-        raw_data = self.extractor.extract_data()
-        print(f"Extracted {len(raw_data)} records")
+        # Step 1: Extract data from Google Drive RAW folder
+        print("\n[STEP 1/3] EXTRACTION")
+        print("-" * 70)
+        raw_data = self.extractor.extract_all_data()
         
-        # Step 2: Transform
-        print("\n[2/3] Transforming data...")
-        transformed_data = self.transformer.transform_data(raw_data)
-        print(f"Transformation complete. {len(transformed_data)} clean records")
+        # Step 2: Transform data (standardize, clean, add business logic)
+        print("\n[STEP 2/3] TRANSFORMATION")
+        print("-" * 70)
+        transformed_data = self.transformer.transform_all_data(raw_data)
         
-        # Step 3: Load
-        print("\n[3/3] Loading data...")
-        self.loader.load_data(transformed_data, execution_date)
+        # Step 3: Load data to Google Sheets and Data Lake
+        print("\n[STEP 3/3] LOAD")
+        print("-" * 70)
+        self.loader.load_all_data(transformed_data, execution_date)
         
-        print("\nETL Pipeline execution completed successfully!")
+        print("\n" + "="*70)
+        print("ETL Pipeline execution completed successfully")
+        print("="*70)
+        print(f"Execution finished: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+

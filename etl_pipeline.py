@@ -1,6 +1,6 @@
 """
 Main ETL Pipeline execution script.
-Orchestrates the complete data pipeline with error handling.
+Orchestrates the complete ASO data pipeline with error handling.
 """
 
 import sys
@@ -16,37 +16,36 @@ def main():
     Main execution function for the ETL pipeline.
     """
     execution_date = datetime.now()
-    drive_service = None
-    error_handler = None
+    error_handler = ErrorHandler()
     
     try:
-        print("="*60)
-        print("AppASO ETL Pipeline - Stage Environment")
-        print("="*60)
+        print("="*70)
+        print("AppASO ETL Pipeline - ASO Data Processing")
+        print("="*70)
         print(f"Execution started: {execution_date.strftime('%Y-%m-%d %H:%M:%S')}")
         print()
         
-        # Step 1: Authenticate
-        print("[Authentication] Authenticating with Google Cloud...")
+        # Step 1: Authenticate with Google Cloud
+        print("[AUTHENTICATION] Authenticating with Google Cloud...")
         auth_service = AuthService()
         gspread_client, drive_api = auth_service.authenticate()
-        print("[Authentication] Successfully authenticated")
+        print("[AUTHENTICATION] Successfully authenticated")
         print()
         
-        # Step 2: Initialize services
+        # Step 2: Initialize Drive service
         drive_service = DriveService(gspread_client, drive_api)
-        error_handler = ErrorHandler(drive_service)
         
-        # Step 3: Check control panel
-        print("[Control Check] Checking control panel status...")
+        # Step 3: Check control panel (cell B3 must be TRUE/ON)
+        print("[CONTROL CHECK] Verifying control panel status...")
         is_enabled = drive_service.check_control_panel()
         
         if not is_enabled:
-            print("[Control Check] Pipeline is DISABLED (control panel is OFF)")
-            print("Execution stopped. No data processing will occur.")
+            print("[CONTROL CHECK] Pipeline is DISABLED (control panel B3 is OFF)")
+            print("Execution stopped gracefully. No data processing will occur.")
+            print("To enable the pipeline, set cell B3 in 00_Control_Panel to TRUE or ON")
             sys.exit(0)
         
-        print("[Control Check] Pipeline is ENABLED (control panel is ON)")
+        print("[CONTROL CHECK] Pipeline is ENABLED (control panel B3 is ON)")
         print()
         
         # Step 4: Run ETL pipeline
@@ -54,26 +53,22 @@ def main():
         pipeline.run()
         
         print()
-        print("="*60)
+        print("="*70)
         print("Pipeline execution completed successfully")
-        print("="*60)
+        print("="*70)
         
     except Exception as e:
         print()
-        print("="*60)
+        print("="*70)
         print("CRITICAL ERROR: Pipeline execution failed")
-        print("="*60)
+        print("="*70)
         
-        # Use error handler if available, otherwise print error
-        if error_handler:
-            error_handler.handle_error(e, "ETL Pipeline Execution")
-        else:
-            print(f"Error: {str(e)}")
-            import traceback
-            traceback.print_exc()
+        # Handle error and send notifications
+        error_handler.handle_error(e, "ETL Pipeline Execution")
         
         sys.exit(1)
 
 
 if __name__ == "__main__":
     main()
+

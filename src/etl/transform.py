@@ -1,48 +1,308 @@
 """
 Data transformation module.
-Handles data cleaning and transformation logic.
+Handles data cleaning, standardization, and business logic.
 """
 
 import pandas as pd
 from datetime import datetime
+from typing import Dict, Tuple
+
+from src.config import settings
+from src.etl.column_mapping import ColumnMapper
 
 
 class DataTransformer:
     """
-    Handles data transformation and cleaning operations.
+    Handles data transformation, cleaning, and business logic operations.
+    Applies column mapping, date formatting, and agency stage classification.
     """
     
     def __init__(self):
         """
         Initialize data transformer.
         """
-        pass
+        self.mapper = ColumnMapper()
+        self.agency_start_date = pd.to_datetime(settings.AGENCY_START_DATE)
     
-    def transform_data(self, df: pd.DataFrame) -> pd.DataFrame:
+    def transform_all_data(self, raw_data: Dict[str, Tuple[pd.DataFrame, pd.DataFrame]]) -> Dict[str, pd.DataFrame]:
         """
-        Transform and clean the input DataFrame.
+        Transform all extracted data.
         
         Args:
-            df: Raw DataFrame to transform
-            
+            raw_data: Dictionary with "keywords", "installs", "users" as keys
+                     Each value is a tuple of (apple_df, google_df)
+        
         Returns:
-            Cleaned and transformed DataFrame
+            Dictionary with "keywords", "installs", "users" as keys
+            Each value is a unified, cleaned DataFrame
         """
-        df_clean = df.copy()
+        print("\n[TRANSFORMATION] Starting data transformation...")
         
-        # Remove null values
-        df_clean = self._handle_nulls(df_clean)
+        # Transform each data type
+        keywords_df = self._transform_keywords(
+            raw_data["keywords"][0],  # Apple
+            raw_data["keywords"][1]   # Google
+        )
         
-        # Format date column
-        df_clean = self._format_dates(df_clean)
+        installs_df = self._transform_installs(
+            raw_data["installs"][0],  # Apple
+            raw_data["installs"][1]   # Google
+        )
         
-        # Validate data types
-        df_clean = self._validate_types(df_clean)
+        users_df = self._transform_users(
+            raw_data["users"][0],  # Apple
+            raw_data["users"][1]   # Google
+        )
         
-        # Sort by id
-        df_clean = df_clean.sort_values("id").reset_index(drop=True)
+        print(f"[TRANSFORMATION] Keywords: {len(keywords_df)} total rows")
+        print(f"[TRANSFORMATION] Installs: {len(installs_df)} total rows")
+        print(f"[TRANSFORMATION] Users: {len(users_df)} total rows")
+        
+        return {
+            "keywords": keywords_df,
+            "installs": installs_df,
+            "users": users_df
+        }
+    
+    def _transform_keywords(self, apple_df: pd.DataFrame, google_df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Transform and unify keywords data from both platforms.
+        
+        Args:
+            apple_df: Raw Apple keywords data
+            google_df: Raw Google keywords data
+        
+        Returns:
+            Unified and cleaned keywords DataFrame
+        """
+        # Apply column mapping for Apple
+        apple_mapping = self.mapper.get_keywords_mapping("Apple")
+        apple_clean = apple_df.rename(columns=apple_mapping)
+        apple_clean["Platform"] = "Apple"
+        
+        # Apply column mapping for Google
+        google_mapping = self.mapper.get_keywords_mapping("Google")
+        google_clean = google_df.rename(columns=google_mapping)
+        google_clean["Platform"] = "Google"
+        
+        # Combine both platforms
+        combined = pd.concat([apple_clean, google_clean], ignore_index=True)
+        
+        # Keep only standard columns
+        columns_to_keep = [col for col in self.mapper.get_columns_to_keep("keywords") if col != "Stage"]
+        combined = combined[columns_to_keep]
+        
+        # Clean and format
+        combined = self._format_dates(combined)
+        combined = self._add_agency_stage(combined)
+        combined = self._handle_nulls(combined)
+        
+        # Sort by date and platform
+        combined = combined.sort_values(["Date", "Platform"]).reset_index(drop=True)
+        
+        return combined
+    
+    def _transform_installs(self, apple_df: pd.DataFrame, google_df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Transform and unify installs data from both platforms.
+        
+        Args:
+            apple_df: Raw Apple installs data
+            google_df: Raw Google installs data
+        
+        Returns:
+            Unified and cleaned installs DataFrame
+        """
+        # Apply column mapping for Apple
+        apple_mapping = self.mapper.get_installs_mapping("Apple")
+        apple_clean = apple_df.rename(columns=apple_mapping)
+        apple_clean["Platform"] = "Apple"
+        
+        # Apply column mapping for Google
+        google_mapping = self.mapper.get_installs_mapping("Google")
+        google_clean = google_df.rename(columns=google_mapping)
+        google_clean["Platform"] = "Google"
+        
+        # Combine both platforms
+        combined = pd.concat([apple_clean, google_clean], ignore_index=True)
+        
+        # Keep only standard columns
+        columns_to_keep = [col for col in self.mapper.get_columns_to_keep("installs") if col != "Stage"]
+        combined = combined[columns_to_keep]
+        
+        # Clean and format
+        combined = self._format_dates(combined)
+        combined = self._add_agency_stage(combined)
+        combined = self._handle_nulls(combined)
+        
+        # Ensure Installs is numeric
+        combined["Installs"] = pd.to_numeric(combined["Installs"], errors="coerce")
+        
+        # Sort by date and platform
+        combined = combined.sort_values(["Date", "Platform"]).reset_index(drop=True)
+        
+        return combined
+    
+    def _transform_users(self, apple_df: pd.DataFrame, google_df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Transform and unify active users data from both platforms.
+        Special handling required due to different file structures.
+        
+        Args:
+            apple_df: Raw Apple users data
+            google_df: Raw Google users data
+        
+        Returns:
+            Unified and cleaned users DataFrame
+        """
+        # Apple data has metadata rows at the top - need to skip them
+        apple_clean = self._clean_apple_users(apple_df)
+        
+        # Google data has different date format
+        google_clean = self._clean_google_users(google_df)
+        
+        # Combine both platforms
+        combined = pd.concat([apple_clean, google_clean], ignore_index=True)
+        
+        # Keep only standard columns
+        columns_to_keep = [col for col in self.mapper.get_columns_to_keep("users") if col != "Stage"]
+        combined = combined[columns_to_keep]
+        
+        # Clean and format
+        combined = self._format_dates(combined)
+        combined = self._add_agency_stage(combined)
+        combined = self._handle_nulls(combined)
+        
+        # Ensure Active_Users is numeric
+        combined["Active_Users"] = pd.to_numeric(combined["Active_Users"], errors="coerce")
+        
+        # Remove any remaining nulls
+        combined = combined.dropna(subset=["Date", "Active_Users"])
+        
+        # Sort by date and platform
+        combined = combined.sort_values(["Date", "Platform"]).reset_index(drop=True)
+        
+        return combined
+    
+    def _clean_apple_users(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Clean Apple users data (has metadata rows at top).
+        
+        Args:
+            df: Raw Apple users DataFrame
+        
+        Returns:
+            Cleaned DataFrame
+        """
+        # Apply column mapping
+        mapping = self.mapper.get_users_mapping("Apple")
+        df_mapped = df.rename(columns=mapping)
+        
+        # Skip first 2 rows (metadata: start date, end date)
+        # Then skip any NaN rows
+        df_clean = df_mapped.iloc[2:].copy()
+        df_clean = df_clean.dropna(subset=["Date", "Active_Users"])
+        
+        # Add platform identifier
+        df_clean["Platform"] = "Apple"
         
         return df_clean
+    
+    def _clean_google_users(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Clean Google users data (has French date format).
+        
+        Args:
+            df: Raw Google users DataFrame
+        
+        Returns:
+            Cleaned DataFrame
+        """
+        # Apply column mapping
+        mapping = self.mapper.get_users_mapping("Google")
+        df_mapped = df.rename(columns=mapping)
+        
+        # Select only needed columns
+        df_clean = df_mapped[["Date", "Active_Users"]].copy()
+        
+        # Remove any rows with missing data
+        df_clean = df_clean.dropna(subset=["Date", "Active_Users"])
+        
+        # Convert French date format (e.g., "1 janv. 2024") to standard format
+        df_clean["Date"] = self._parse_french_dates(df_clean["Date"])
+        
+        # Add platform identifier
+        df_clean["Platform"] = "Google"
+        
+        return df_clean
+    
+    def _parse_french_dates(self, date_series: pd.Series) -> pd.Series:
+        """
+        Parse French formatted dates to standard datetime.
+        Handles format like "1 janv. 2024" or "15 déc. 2024"
+        
+        Args:
+            date_series: Series with French formatted dates
+        
+        Returns:
+            Series with parsed datetime values
+        """
+        # French month abbreviations mapping
+        french_months = {
+            "janv": "01", "févr": "02", "mars": "03", "avr": "04",
+            "mai": "05", "juin": "06", "juil": "07", "août": "08",
+            "sept": "09", "oct": "10", "nov": "11", "déc": "12"
+        }
+        
+        def parse_single_date(date_str):
+            try:
+                # Remove periods and split
+                parts = str(date_str).replace(".", "").split()
+                if len(parts) == 3:
+                    day = parts[0].zfill(2)
+                    month = french_months.get(parts[1], "01")
+                    year = parts[2]
+                    return f"{year}-{month}-{day}"
+                return None
+            except:
+                return None
+        
+        parsed = date_series.apply(parse_single_date)
+        return pd.to_datetime(parsed, errors="coerce")
+    
+    def _format_dates(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Ensure Date column is in YYYY-MM-DD format.
+        
+        Args:
+            df: DataFrame with Date column
+        
+        Returns:
+            DataFrame with formatted dates
+        """
+        if "Date" in df.columns:
+            df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+            # Keep as datetime object for now (will convert to string later if needed)
+        
+        return df
+    
+    def _add_agency_stage(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Add business logic column: Pre-Agency vs Con-Agency.
+        Based on agency start date (2025-07-15).
+        
+        Args:
+            df: DataFrame with Date column
+        
+        Returns:
+            DataFrame with Stage column added
+        """
+        if "Date" in df.columns:
+            df["Stage"] = df["Date"].apply(
+                lambda x: "Con-Agencia" if x >= self.agency_start_date else "Pre-Agencia"
+            )
+        
+        return df
     
     def _handle_nulls(self, df: pd.DataFrame) -> pd.DataFrame:
         """
@@ -50,56 +310,15 @@ class DataTransformer:
         
         Args:
             df: DataFrame with potential null values
-            
+        
         Returns:
             DataFrame with nulls handled
         """
-        # For numeric columns, fill with median
-        if "valor" in df.columns:
-            df["valor"].fillna(df["valor"].median(), inplace=True)
+        # Drop rows with null dates (critical column)
+        if "Date" in df.columns:
+            df = df.dropna(subset=["Date"])
         
-        # Drop rows with nulls in critical columns
-        critical_columns = ["id", "fecha", "fuente", "categoria"]
-        df.dropna(subset=[col for col in critical_columns if col in df.columns], inplace=True)
-        
-        return df
-    
-    def _format_dates(self, df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Ensure date column is in YYYY-MM-DD format.
-        
-        Args:
-            df: DataFrame with date column
-            
-        Returns:
-            DataFrame with formatted dates
-        """
-        if "fecha" in df.columns:
-            df["fecha"] = pd.to_datetime(df["fecha"]).dt.strftime("%Y-%m-%d")
-        
-        return df
-    
-    def _validate_types(self, df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Validate and convert data types.
-        
-        Args:
-            df: DataFrame to validate
-            
-        Returns:
-            DataFrame with validated types
-        """
-        # Ensure id is integer
-        if "id" in df.columns:
-            df["id"] = df["id"].astype(int)
-        
-        # Ensure valor is float
-        if "valor" in df.columns:
-            df["valor"] = df["valor"].astype(float)
-        
-        # Ensure categorical columns are strings
-        for col in ["fuente", "categoria"]:
-            if col in df.columns:
-                df[col] = df[col].astype(str)
+        # For numeric columns, keep nulls as they might be legitimate missing data
+        # They will be handled in visualization layer
         
         return df

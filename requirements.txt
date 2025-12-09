@@ -1,6 +1,6 @@
-# ETL Pipeline Dependencies
+# ETL Pipeline Dependencies for AppASO
 
-# Google Cloud & Drive
+# Google Cloud & Drive APIs
 google-auth==2.27.0
 google-auth-oauthlib==1.2.0
 google-auth-httplib2==0.2.0
@@ -10,7 +10,8 @@ gspread==6.0.0
 # Data Processing
 pandas==2.2.0
 numpy==1.26.3
+openpyxl==3.1.2
 
-# Additional utilities
+# Date and time utilities
 python-dateutil==2.8.2
 pytz==2024.1

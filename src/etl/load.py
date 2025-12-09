@@ -1,17 +1,20 @@
 """
 Data loading module.
-Handles loading data to Google Drive and Google Sheets.
+Handles loading data to Google Sheets (3 worksheets) and Data Lake (historical backup).
 """
 
 import pandas as pd
 from datetime import datetime
+from typing import Dict
 
 from src.services import DriveService
+from src.config import settings
 
 
 class DataLoader:
     """
-    Handles data loading operations to Google Drive and Sheets.
+    Handles data loading operations to Google Sheets and Data Lake.
+    Writes to 3 separate worksheets in MASTER_DATA_CLEAN.
     """
     
     def __init__(self, drive_service: DriveService):
@@ -23,52 +26,121 @@ class DataLoader:
         """
         self.drive_service = drive_service
     
-    def load_data(self, df: pd.DataFrame, execution_date: datetime) -> None:
+    def load_all_data(self, transformed_data: Dict[str, pd.DataFrame], execution_date: datetime) -> None:
         """
-        Load transformed data to both Data Lake (historic) and Data Warehouse (current).
+        Load all transformed data to Google Sheets and Data Lake.
         
         Args:
-            df: Transformed DataFrame to load
+            transformed_data: Dictionary with "keywords", "installs", "users" DataFrames
             execution_date: Date of pipeline execution
             
         Raises:
             Exception: If any load operation fails
         """
-        # Load to Data Lake (historic CSV)
-        self._load_to_data_lake(df, execution_date)
+        print("\n[LOAD] Starting data load operations...")
         
-        # Load to Data Warehouse (current master sheet)
-        self._load_to_data_warehouse(df)
+        # Load to Google Sheets (3 worksheets in MASTER_DATA_CLEAN)
+        self._load_to_master_sheets(transformed_data)
+        
+        # Load to Data Lake (historical backup as CSV)
+        self._load_to_data_lake(transformed_data, execution_date)
+        
+        print("[LOAD] All data successfully loaded")
     
-    def _load_to_data_lake(self, df: pd.DataFrame, execution_date: datetime) -> None:
+    def _load_to_master_sheets(self, data: Dict[str, pd.DataFrame]) -> None:
         """
-        Save DataFrame to Data Lake as CSV file.
+        Load data to MASTER_DATA_CLEAN Google Sheet (3 separate worksheets).
+        Clears existing content and writes new data.
         
         Args:
-            df: DataFrame to save
+            data: Dictionary with "keywords", "installs", "users" DataFrames
+            
+        Raises:
+            Exception: If update fails
+        """
+        try:
+            print("[LOAD] Writing to MASTER_DATA_CLEAN Google Sheet...")
+            
+            # Find the MASTER_DATA_CLEAN sheet
+            root_id = self.drive_service.get_root_folder_id()
+            master_file_id = self.drive_service.find_file_by_name(
+                settings.MASTER_DATA_SHEET,
+                parent_id=root_id
+            )
+            
+            if not master_file_id:
+                raise Exception(f"Sheet '{settings.MASTER_DATA_SHEET}' not found in root folder")
+            
+            spreadsheet = self.drive_service.gspread_client.open_by_key(master_file_id)
+            
+            # Load each data type to its respective worksheet
+            self._update_worksheet(spreadsheet, settings.KEYWORDS_SHEET, data["keywords"])
+            self._update_worksheet(spreadsheet, settings.INSTALLS_SHEET, data["installs"])
+            self._update_worksheet(spreadsheet, settings.USERS_SHEET, data["users"])
+            
+            print(f"[LOAD] Successfully updated {settings.KEYWORDS_SHEET}: {len(data['keywords'])} rows")
+            print(f"[LOAD] Successfully updated {settings.INSTALLS_SHEET}: {len(data['installs'])} rows")
+            print(f"[LOAD] Successfully updated {settings.USERS_SHEET}: {len(data['users'])} rows")
+            
+        except Exception as e:
+            raise Exception(f"Failed to load data to master sheets: {str(e)}")
+    
+    def _update_worksheet(self, spreadsheet, worksheet_name: str, df: pd.DataFrame) -> None:
+        """
+        Update a specific worksheet in the spreadsheet.
+        Creates worksheet if it doesn't exist.
+        
+        Args:
+            spreadsheet: gspread Spreadsheet object
+            worksheet_name: Name of the worksheet to update
+            df: DataFrame to write
+        """
+        try:
+            # Try to get existing worksheet
+            try:
+                worksheet = spreadsheet.worksheet(worksheet_name)
+            except:
+                # Create new worksheet if it doesn't exist
+                worksheet = spreadsheet.add_worksheet(title=worksheet_name, rows=1000, cols=20)
+            
+            # Clear existing content
+            worksheet.clear()
+            
+            # Convert datetime columns to string format for Sheets
+            df_copy = df.copy()
+            for col in df_copy.columns:
+                if pd.api.types.is_datetime64_any_dtype(df_copy[col]):
+                    df_copy[col] = df_copy[col].dt.strftime("%Y-%m-%d")
+            
+            # Prepare data with headers
+            data = [df_copy.columns.tolist()] + df_copy.values.tolist()
+            
+            # Update worksheet
+            worksheet.update(data, value_input_option="RAW")
+            
+        except Exception as e:
+            raise Exception(f"Failed to update worksheet '{worksheet_name}': {str(e)}")
+    
+    def _load_to_data_lake(self, data: Dict[str, pd.DataFrame], execution_date: datetime) -> None:
+        """
+        Save all DataFrames to Data Lake as CSV files for historical backup.
+        
+        Args:
+            data: Dictionary with "keywords", "installs", "users" DataFrames
             execution_date: Date to determine folder structure
             
         Raises:
             Exception: If save fails
         """
         try:
-            self.drive_service.save_to_data_lake(df, execution_date)
-            print(f"Data successfully saved to Data Lake for {execution_date.strftime('%Y-%m-%d')}")
+            print("[LOAD] Saving historical backup to Data Lake...")
+            
+            # Save each data type separately
+            for data_type, df in data.items():
+                self.drive_service.save_to_data_lake(df, execution_date, data_type)
+            
+            print(f"[LOAD] Historical backup saved for {execution_date.strftime('%Y-%m-%d')}")
+            
         except Exception as e:
             raise Exception(f"Failed to load data to Data Lake: {str(e)}")
-    
-    def _load_to_data_warehouse(self, df: pd.DataFrame) -> None:
-        """
-        Update the master data sheet in Data Warehouse.
-        
-        Args:
-            df: DataFrame to upload
-            
-        Raises:
-            Exception: If update fails
-        """
-        try:
-            self.drive_service.update_master_data(df)
-            print("Data successfully updated in Data Warehouse (MASTER_DATA_CLEAN)")
-        except Exception as e:
-            raise Exception(f"Failed to load data to Data Warehouse: {str(e)}")
+

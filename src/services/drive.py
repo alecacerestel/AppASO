@@ -137,49 +137,17 @@ class DriveService:
             
         except Exception as e:
             raise Exception(f"Error checking control panel: {str(e)}")
+
     
-    def update_master_data(self, df: pd.DataFrame) -> None:
-        """
-        Update the MASTER_DATA_CLEAN sheet with new data.
-        
-        Args:
-            df: DataFrame containing the data to upload
-            
-        Raises:
-            Exception: If update fails
-        """
-        try:
-            root_id = self.get_root_folder_id()
-            warehouse_id = self.find_folder_by_name(settings.DATA_WAREHOUSE_FOLDER, root_id)
-            
-            if not warehouse_id:
-                raise Exception(f"Folder '{settings.DATA_WAREHOUSE_FOLDER}' not found")
-            
-            master_file_id = self.find_file_by_name(settings.MASTER_DATA_SHEET, warehouse_id)
-            
-            if not master_file_id:
-                raise Exception(f"Sheet '{settings.MASTER_DATA_SHEET}' not found")
-            
-            spreadsheet = self.gspread_client.open_by_key(master_file_id)
-            worksheet = spreadsheet.sheet1
-            
-            # Clear existing data
-            worksheet.clear()
-            
-            # Update with new data (including headers)
-            data = [df.columns.tolist()] + df.values.tolist()
-            worksheet.update(data, value_input_option="RAW")
-            
-        except Exception as e:
-            raise Exception(f"Error updating master data: {str(e)}")
-    
-    def save_to_data_lake(self, df: pd.DataFrame, date: datetime) -> None:
+    def save_to_data_lake(self, df: pd.DataFrame, date: datetime, data_type: str) -> None:
         """
         Save DataFrame as CSV to the appropriate Data Lake folder.
+        Creates a separate file for each data type (keywords, installs, users).
         
         Args:
             df: DataFrame to save
             date: Date to determine folder structure and filename
+            data_type: Type of data ("keywords", "installs", or "users")
             
         Raises:
             Exception: If save fails
@@ -210,8 +178,8 @@ class DriveService:
             df.to_csv(csv_buffer, index=False)
             csv_content = csv_buffer.getvalue()
             
-            # Upload file
-            filename = f"data_{date.strftime('%Y%m%d')}.csv"
+            # Upload file with data type in filename
+            filename = f"{data_type}_{date.strftime('%Y%m%d')}.csv"
             
             # Check if file already exists
             existing_file_id = self.find_file_by_name(filename, month_id)
@@ -242,42 +210,5 @@ class DriveService:
                 ).execute()
                 
         except Exception as e:
-            raise Exception(f"Error saving to Data Lake: {str(e)}")
-    
-    def upload_log_file(self, log_content: str, filename: str) -> None:
-        """
-        Upload a log file to the Logs folder.
-        
-        Args:
-            log_content: Content of the log file
-            filename: Name for the log file
-            
-        Raises:
-            Exception: If upload fails
-        """
-        try:
-            root_id = self.get_root_folder_id()
-            logs_id = self.find_folder_by_name(settings.LOGS_FOLDER, root_id)
-            
-            if not logs_id:
-                raise Exception(f"Folder '{settings.LOGS_FOLDER}' not found")
-            
-            file_metadata = {
-                "name": filename,
-                "parents": [logs_id]
-            }
-            
-            media = MediaIoBaseUpload(
-                io.BytesIO(log_content.encode("utf-8")),
-                mimetype="text/plain",
-                resumable=True
-            )
-            
-            self.drive_service.files().create(
-                body=file_metadata,
-                media_body=media,
-                fields="id"
-            ).execute()
-            
-        except Exception as e:
-            raise Exception(f"Error uploading log file: {str(e)}")
+            raise Exception(f"Error saving {data_type} to Data Lake: {str(e)}")
+

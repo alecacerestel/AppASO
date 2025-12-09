@@ -1,28 +1,24 @@
 """
 Error handling utilities.
-Manages error logging and recovery.
+Manages error logging and notifications.
 """
 
 import traceback
 from datetime import datetime
 
-from src.services import DriveService
 from src.utils.notifications import EmailService
 
 
 class ErrorHandler:
     """
     Handles errors, logging, and notifications.
+    No longer uploads to Drive logs folder - only sends email alerts.
     """
     
-    def __init__(self, drive_service: DriveService = None):
+    def __init__(self):
         """
         Initialize error handler.
-        
-        Args:
-            drive_service: Optional Drive service for uploading logs
         """
-        self.drive_service = drive_service
         self.email_service = EmailService()
     
     def handle_error(self, error: Exception, context: str = "") -> None:
@@ -39,20 +35,11 @@ class ErrorHandler:
         log_content = self._create_log_content(error, context, execution_date)
         
         # Print to console
-        print("\n" + "="*50)
-        print("ERROR OCCURRED")
-        print("="*50)
+        print("\n" + "="*70)
+        print("CRITICAL ERROR OCCURRED")
+        print("="*70)
         print(log_content)
-        print("="*50 + "\n")
-        
-        # Upload log to Google Drive if service is available
-        if self.drive_service:
-            try:
-                log_filename = f"error_log_{execution_date.strftime('%Y%m%d_%H%M%S')}.txt"
-                self.drive_service.upload_log_file(log_content, log_filename)
-                print(f"Error log uploaded to Google Drive: {log_filename}")
-            except Exception as upload_error:
-                print(f"Failed to upload error log: {str(upload_error)}")
+        print("="*70 + "\n")
         
         # Send email notification
         try:
@@ -74,7 +61,7 @@ class ErrorHandler:
         """
         log_lines = [
             "="*80,
-            "ETL PIPELINE ERROR LOG",
+            "AppASO ETL PIPELINE ERROR LOG",
             "="*80,
             f"Timestamp: {execution_date.strftime('%Y-%m-%d %H:%M:%S')}",
             f"Context: {context if context else 'General execution error'}",
@@ -91,3 +78,4 @@ class ErrorHandler:
         ]
         
         return "\n".join(log_lines)
+

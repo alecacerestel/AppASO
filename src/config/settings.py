@@ -27,13 +27,24 @@ class Settings:
     ROOT_FOLDER_NAME: str = "AppASO"
     CONTROL_PANEL_NAME: str = "00_Control_Panel"
     CONTROL_SHEET_NAME: str = "Config"
-    CONTROL_CELL: str = "B1"
+    CONTROL_CELL: str = "B3"
     
-    DATA_WAREHOUSE_FOLDER: str = "01_Data_Warehouse"
+    # Raw data folder (contains source Excel/CSV files)
+    RAW_DATA_FOLDER_ID: str = "1HptFA1vpGiLZaLzZZZO5wI0P3EjKTDlL"
+    
+    # Master data sheet (destination with 3 worksheets)
     MASTER_DATA_SHEET: str = "MASTER_DATA_CLEAN"
     
+    # Worksheet names in MASTER_DATA_CLEAN
+    KEYWORDS_SHEET: str = "KEYWORDS"
+    INSTALLS_SHEET: str = "INSTALLS"
+    USERS_SHEET: str = "USERS"
+    
+    # Historical data lake for daily backups
     DATA_LAKE_FOLDER: str = "02_Data_Lake_Historic"
-    LOGS_FOLDER: str = "03_Logs_And_Errors"
+    
+    # Agency start date for business logic (Pre-Agency vs Con-Agency)
+    AGENCY_START_DATE: str = "2025-07-15"
     
     # Month names mapping
     MONTH_NAMES: Dict[int, str] = {

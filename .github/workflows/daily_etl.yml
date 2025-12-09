@@ -1,11 +1,12 @@
-name: Daily ETL Pipeline
+name: Daily ETL Pipeline - ASO Data Processing
 
 on:
   schedule:
-    # Run every day at 8:00 AM UTC
+    # Run every day at 9:00 AM Paris time (8:00 AM UTC in winter, 7:00 AM UTC in summer)
+    # Using 8:00 AM UTC as baseline (adjust for DST if needed)
     - cron: '0 8 * * *'
   
-  # Allow manual trigger
+  # Allow manual trigger for testing
   workflow_dispatch:
 
 jobs:
@@ -40,7 +41,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: pipeline-logs
+          name: pipeline-logs-${{ github.run_number }}
           path: |
             *.log
             *.txt
