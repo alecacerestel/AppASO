@@ -112,7 +112,27 @@ class DataExtractor:
         try:
             print(f"[EXTRACTION] Downloading {filename}...")
             
-            request = self.drive_service.files().get_media(fileId=file_id)
+            # Get file metadata to check if it's a Google Sheets
+            file_metadata = self.drive_service.files().get(
+                fileId=file_id,
+                fields='mimeType'
+            ).execute()
+            
+            mime_type = file_metadata.get('mimeType', '')
+            
+            if 'spreadsheet' in mime_type:
+                # It's a Google Sheet - use export as Excel
+                request = self.drive_service.files().export_media(
+                    fileId=file_id,
+                    mimeType='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                )
+                # Ensure .xlsx extension
+                if not local_path.endswith('.xlsx'):
+                    local_path += '.xlsx'
+            else:
+                # It's a binary file - use download
+                request = self.drive_service.files().get_media(fileId=file_id)
+            
             file_buffer = io.BytesIO()
             downloader = MediaIoBaseDownload(file_buffer, request)
             
@@ -154,6 +174,28 @@ class DataExtractor:
             
         except Exception as e:
             raise Exception(f"Error reading file '{os.path.basename(filepath)}': {str(e)}")
+    
+    def _find_file_by_pattern(self, file_list: Dict[str, str], pattern: str) -> Tuple[str, str]:
+        """
+        Find a file in the list that matches the given pattern.
+        
+        Args:
+            file_list: Dictionary mapping filename to file ID
+            pattern: Pattern to search for in filename (case-insensitive)
+            
+        Returns:
+            Tuple of (filename, file_id)
+            
+        Raises:
+            Exception: If no matching file is found
+        """
+        pattern_lower = pattern.lower()
+        
+        for filename, file_id in file_list.items():
+            if pattern_lower in filename.lower():
+                return filename, file_id
+        
+        raise Exception(f"File matching pattern '{pattern}' not found in RAW folder")
     
     def _extract_keywords(self, file_list: Dict[str, str]) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """
@@ -233,32 +275,5 @@ class DataExtractor:
         )
         google_path = self._download_and_save_file(google_id, google_filename)
         google_df = self._read_local_file(google_path)
-        
-        return apple_df, google_df
-        google_df = self._download_file_as_dataframe(google_id, google_filename)
-        
-        return apple_df, google_df
-    
-    def _extract_users(self, file_list: Dict[str, str]) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        """
-        Extract active users data from both platforms.
-        
-        Args:
-            file_list: Dictionary of available files
-            
-        Returns:
-            Tuple of (apple_df, google_df)
-        """
-        # Apple users
-        apple_filename, apple_id = self._find_file_by_pattern(
-            file_list, self.file_patterns["users_apple"]
-        )
-        apple_df = self._download_file_as_dataframe(apple_id, apple_filename)
-        
-        # Google users
-        google_filename, google_id = self._find_file_by_pattern(
-            file_list, self.file_patterns["users_google"]
-        )
-        google_df = self._download_file_as_dataframe(google_id, google_filename)
         
         return apple_df, google_df

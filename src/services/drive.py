@@ -107,7 +107,13 @@ class DriveService:
             worksheet = spreadsheet.worksheet(settings.CONTROL_SHEET_NAME)
             control_value = worksheet.acell(settings.CONTROL_CELL).value
             
-            return control_value and control_value.strip().upper() == "ON"
+            # Support checkboxes (TRUE/FALSE) and text (ON/OFF)
+            if control_value is True or control_value == "TRUE":
+                return True
+            if isinstance(control_value, str) and control_value.strip().upper() == "ON":
+                return True
+            
+            return False
             
         except Exception as e:
             raise Exception(f"Error checking control panel: {str(e)}")

@@ -108,6 +108,10 @@ class DataLoader:
                 if pd.api.types.is_datetime64_any_dtype(df_copy[col]):
                     df_copy[col] = df_copy[col].dt.strftime("%Y-%m-%d")
             
+            # Replace inf/-inf/nan with None for JSON compatibility
+            df_copy = df_copy.replace([float('inf'), float('-inf')], None)
+            df_copy = df_copy.fillna('')
+            
             # Prepare data with headers
             data = [df_copy.columns.tolist()] + df_copy.values.tolist()
             
@@ -119,24 +123,33 @@ class DataLoader:
     
     def _load_to_data_lake(self, data: Dict[str, pd.DataFrame], execution_date: datetime) -> None:
         """
-        Save all DataFrames to Data Lake as CSV files for historical backup.
+        Save all DataFrames as CSV files for historical backup locally.
         
         Args:
             data: Dictionary with "keywords", "installs", "users" DataFrames
-            execution_date: Date to determine folder structure
+            execution_date: Date to determine filename
             
         Raises:
             Exception: If save fails
         """
         try:
-            print("[LOAD] Saving historical backup to Data Lake...")
+            print("[LOAD] Saving historical backup to local data lake...")
             
-            # Save each data type separately
+            # Create processed data directory
+            import os
+            processed_dir = "data/processed"
+            os.makedirs(processed_dir, exist_ok=True)
+            
+            # Save each data type as separate CSV file
+            date_str = execution_date.strftime('%Y%m%d')
             for data_type, df in data.items():
-                self.drive_service.save_to_data_lake(df, execution_date, data_type)
+                filename = f"{data_type}_{date_str}.csv"
+                filepath = os.path.join(processed_dir, filename)
+                df.to_csv(filepath, index=False)
+                print(f"[LOAD] Saved {filename} ({len(df)} rows)")
             
-            print(f"[LOAD] Historical backup saved for {execution_date.strftime('%Y-%m-%d')}")
+            print(f"[LOAD] Historical backup saved to {processed_dir}/")
             
         except Exception as e:
-            raise Exception(f"Failed to load data to Data Lake: {str(e)}")
+            raise Exception(f"Failed to save local backup: {str(e)}")
 
