@@ -92,13 +92,16 @@ class DataTransformer:
         columns_to_keep = [col for col in self.mapper.get_columns_to_keep("keywords") if col != "Stage"]
         combined = combined[columns_to_keep]
         
-        # Clean and format
-        combined = self._format_dates(combined)
+        # Convert to datetime for proper chronological sorting
+        combined["Date"] = pd.to_datetime(combined["Date"], errors="coerce")
+        combined = combined.sort_values(["Date", "Platform"]).reset_index(drop=True)
+        
+        # Format dates to DD/MM/YYYY after sorting
+        combined["Date"] = combined["Date"].dt.strftime("%d/%m/%Y")
+        
+        # Add business logic and handle nulls
         combined = self._add_agency_stage(combined)
         combined = self._handle_nulls(combined)
-        
-        # Sort by date and platform
-        combined = combined.sort_values(["Date", "Platform"]).reset_index(drop=True)
         
         return combined
     
@@ -130,16 +133,22 @@ class DataTransformer:
         columns_to_keep = [col for col in self.mapper.get_columns_to_keep("installs") if col != "Stage"]
         combined = combined[columns_to_keep]
         
-        # Clean and format
-        combined = self._format_dates(combined)
-        combined = self._add_agency_stage(combined)
-        combined = self._handle_nulls(combined)
+        # Clean Installs: remove ALL types of spaces from numbers (Google uses spaces like "1 042")
+        combined["Installs"] = combined["Installs"].astype(str).str.replace(r'\s+', '', regex=True)
         
         # Ensure Installs is numeric
         combined["Installs"] = pd.to_numeric(combined["Installs"], errors="coerce")
         
-        # Sort by date and platform
+        # Convert to datetime for proper chronological sorting
+        combined["Date"] = pd.to_datetime(combined["Date"], errors="coerce")
         combined = combined.sort_values(["Date", "Platform"]).reset_index(drop=True)
+        
+        # Format dates to DD/MM/YYYY after sorting
+        combined["Date"] = combined["Date"].dt.strftime("%d/%m/%Y")
+        
+        # Add business logic and handle nulls
+        combined = self._add_agency_stage(combined)
+        combined = self._handle_nulls(combined)
         
         return combined
     
@@ -168,19 +177,19 @@ class DataTransformer:
         columns_to_keep = [col for col in self.mapper.get_columns_to_keep("users") if col != "Stage"]
         combined = combined[columns_to_keep]
         
-        # Clean and format
-        combined = self._format_dates(combined)
-        combined = self._add_agency_stage(combined)
-        combined = self._handle_nulls(combined)
-        
-        # Ensure Active_Users is numeric
-        combined["Active_Users"] = pd.to_numeric(combined["Active_Users"], errors="coerce")
-        
-        # Remove any remaining nulls
+        # Remove any rows with invalid dates or users (already numeric from _clean_google_users)
         combined = combined.dropna(subset=["Date", "Active_Users"])
         
-        # Sort by date and platform
+        # Convert to datetime for proper chronological sorting
+        combined["Date"] = pd.to_datetime(combined["Date"], errors="coerce")
         combined = combined.sort_values(["Date", "Platform"]).reset_index(drop=True)
+        
+        # Format dates to DD/MM/YYYY after sorting
+        combined["Date"] = combined["Date"].dt.strftime("%d/%m/%Y")
+        
+        # Add business logic and handle nulls
+        combined = self._add_agency_stage(combined)
+        combined = self._handle_nulls(combined)
         
         return combined
     
@@ -203,8 +212,9 @@ class DataTransformer:
         df_clean = df_mapped.iloc[2:].copy()
         df_clean = df_clean.dropna(subset=["Date", "Active_Users"])
         
-        # Add platform identifier
+        # Add platform identifier and empty Notes column
         df_clean["Platform"] = "Apple"
+        df_clean["Notes"] = ""
         
         return df_clean
     
@@ -222,14 +232,24 @@ class DataTransformer:
         mapping = self.mapper.get_users_mapping("Google")
         df_mapped = df.rename(columns=mapping)
         
-        # Select only needed columns
-        df_clean = df_mapped[["Date", "Active_Users"]].copy()
+        # Select needed columns (including Notes)
+        df_clean = df_mapped[["Date", "Active_Users", "Notes"]].copy()
         
-        # Remove any rows with missing data
+        # Clean Active_Users: remove ALL types of spaces from numbers
+        # Google uses \u202f (narrow no-break space), \xa0 (non-breaking space), and regular spaces
+        df_clean["Active_Users"] = df_clean["Active_Users"].astype(str).str.replace(r'\s+', '', regex=True)
+        
+        # Convert to numeric
+        df_clean["Active_Users"] = pd.to_numeric(df_clean["Active_Users"], errors="coerce")
+        
+        # Remove any rows with missing Date or Active_Users
         df_clean = df_clean.dropna(subset=["Date", "Active_Users"])
         
         # Convert French date format (e.g., "1 janv. 2024") to standard format
         df_clean["Date"] = self._parse_french_dates(df_clean["Date"])
+        
+        # Fill NaN Notes with empty string
+        df_clean["Notes"] = df_clean["Notes"].fillna("")
         
         # Add platform identifier
         df_clean["Platform"] = "Google"
@@ -272,34 +292,38 @@ class DataTransformer:
     
     def _format_dates(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Ensure Date column is in YYYY-MM-DD format.
+        Ensure Date column is in DD/MM/YYYY format (standard European format).
         
         Args:
             df: DataFrame with Date column
         
         Returns:
-            DataFrame with formatted dates
+            DataFrame with formatted dates as DD/MM/YYYY strings
         """
         if "Date" in df.columns:
+            # Convert to datetime first
             df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
-            # Keep as datetime object for now (will convert to string later if needed)
+            # Format as DD/MM/YYYY
+            df["Date"] = df["Date"].dt.strftime("%d/%m/%Y")
         
         return df
     
     def _add_agency_stage(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Add business logic column: Pre-Agency vs Con-Agency.
+        Add business logic column: Pré-Agence vs Avec-Agence.
         Based on agency start date (2025-07-15).
         
         Args:
-            df: DataFrame with Date column
+            df: DataFrame with Date column (DD/MM/YYYY format)
         
         Returns:
             DataFrame with Stage column added
         """
         if "Date" in df.columns:
-            df["Stage"] = df["Date"].apply(
-                lambda x: "Con-Agencia" if x >= self.agency_start_date else "Pre-Agencia"
+            # Convert DD/MM/YYYY string to datetime for comparison
+            date_temp = pd.to_datetime(df["Date"], format="%d/%m/%Y", errors="coerce")
+            df["Stage"] = date_temp.apply(
+                lambda x: "Avec-Agence" if x >= self.agency_start_date else "Pré-Agence"
             )
         
         return df

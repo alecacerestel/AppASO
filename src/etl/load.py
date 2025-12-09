@@ -102,11 +102,9 @@ class DataLoader:
             # Clear existing content
             worksheet.clear()
             
-            # Convert datetime columns to string format for Sheets
+            # Date column is already formatted as DD/MM/YYYY string in transformation
+            # No need to convert datetime columns here
             df_copy = df.copy()
-            for col in df_copy.columns:
-                if pd.api.types.is_datetime64_any_dtype(df_copy[col]):
-                    df_copy[col] = df_copy[col].dt.strftime("%Y-%m-%d")
             
             # Replace inf/-inf/nan with None for JSON compatibility
             df_copy = df_copy.replace([float('inf'), float('-inf')], None)
