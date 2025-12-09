@@ -8,7 +8,7 @@ from datetime import datetime
 
 from src.services import AuthService, DriveService
 from src.etl import ETLPipeline
-from src.utils import ErrorHandler
+from src.utils import ErrorHandler, EmailService
 
 
 def main():
@@ -50,7 +50,11 @@ def main():
         
         # Step 4: Run ETL pipeline
         pipeline = ETLPipeline(drive_service)
-        pipeline.run()
+        stats = pipeline.run()
+        
+        # Step 5: Send success notification
+        email_service = EmailService()
+        email_service.send_success_notification(stats, execution_date)
         
         print()
         print("="*70)

@@ -29,9 +29,12 @@ class ETLPipeline:
         self.transformer = DataTransformer()
         self.loader = DataLoader(drive_service)
     
-    def run(self) -> None:
+    def run(self) -> dict:
         """
         Execute the complete ETL pipeline.
+        
+        Returns:
+            Dictionary with execution statistics
         
         Raises:
             Exception: If any step of the pipeline fails
@@ -62,4 +65,11 @@ class ETLPipeline:
         print("ETL Pipeline execution completed successfully")
         print("="*70)
         print(f"Execution finished: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        
+        # Return statistics for email notification
+        return {
+            'keywords': len(transformed_data['keywords']),
+            'installs': len(transformed_data['installs']),
+            'users': len(transformed_data['users'])
+        }
 
