@@ -6,8 +6,33 @@ on:
     # Using 8:00 AM UTC as baseline (adjust for DST if needed)
     - cron: '0 8 * * *'
   
-  # Allow manual trigger for testing
+  # Allow manual trigger for testing and App Script trigger from Panel de Control
   workflow_dispatch:
+    inputs:
+      run_backup:
+        description: 'Save to Data Lake Historic (B4)'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+      run_ml:
+        description: 'Force ML Retrain (B5)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+      send_alerts:
+        description: 'Send Email Alerts (B6)'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
 
 jobs:
   run-etl:
@@ -39,6 +64,9 @@ jobs:
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
           EMAIL_RECIPIENT: ${{ secrets.EMAIL_RECIPIENT }}
+          RUN_BACKUP: ${{ github.event.inputs.run_backup || 'true' }}
+          RUN_ML: ${{ github.event.inputs.run_ml || 'false' }}
+          SEND_ALERTS: ${{ github.event.inputs.send_alerts || 'true' }}
         run: |
           python etl_pipeline.py
       

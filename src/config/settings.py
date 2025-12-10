@@ -23,6 +23,11 @@ class Settings:
     EMAIL_PASSWORD: str = os.getenv("EMAIL_PASSWORD", "")
     EMAIL_RECIPIENT: str = os.getenv("EMAIL_RECIPIENT", "")
     
+    # Control flags from Panel de Control (cells B4, B5, B6)
+    RUN_BACKUP: bool = os.getenv("RUN_BACKUP", "true").lower() == "true"
+    RUN_ML: bool = os.getenv("RUN_ML", "false").lower() == "true"
+    SEND_ALERTS: bool = os.getenv("SEND_ALERTS", "true").lower() == "true"
+    
     # Google Drive structure constants
     CONTROL_PANEL_NAME: str = "00_Control_Panel"
     CONTROL_SHEET_NAME: str = "Config"

@@ -9,6 +9,7 @@ from datetime import datetime
 from src.services import AuthService, DriveService
 from src.etl import ETLPipeline
 from src.utils import ErrorHandler, EmailService
+from src.config import settings
 
 
 def main():
@@ -48,11 +49,17 @@ def main():
         print("[CONTROL CHECK] Pipeline is ENABLED (control panel B3 is ON)")
         print()
         
-        # Step 4: Run ETL pipeline
+        # Step 4: Check ML flag (for future implementation)
+        if settings.RUN_ML:
+            print("[ML] Force ML retrain requested (Panel B5 = TRUE)")
+            print("[ML] Feature not implemented yet - will be added in future version")
+            print()
+        
+        # Step 5: Run ETL pipeline
         pipeline = ETLPipeline(drive_service)
         stats = pipeline.run()
         
-        # Step 5: Send success notification
+        # Step 6: Send success notification
         email_service = EmailService()
         email_service.send_success_notification(stats, execution_date)
         

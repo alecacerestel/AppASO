@@ -122,6 +122,7 @@ class DataLoader:
     def _load_to_data_lake(self, data: Dict[str, pd.DataFrame], execution_date: datetime) -> None:
         """
         Save all DataFrames as CSV files for historical backup locally.
+        Controlled by RUN_BACKUP flag (cell B4 in Panel de Control).
         
         Args:
             data: Dictionary with "keywords", "installs", "users" DataFrames
@@ -130,6 +131,11 @@ class DataLoader:
         Raises:
             Exception: If save fails
         """
+        # Check if backup is enabled (B4 in Panel de Control)
+        if not settings.RUN_BACKUP:
+            print("[LOAD] Backup disabled (Panel B4 = FALSE). Skipping local data lake save.")
+            return
+        
         try:
             print("[LOAD] Saving historical backup to local data lake...")
             

@@ -29,6 +29,7 @@ class EmailService:
     def send_success_notification(self, stats: dict, execution_date: datetime) -> None:
         """
         Send a success notification email with execution statistics.
+        Controlled by SEND_ALERTS flag (cell B6 in Panel de Control).
         
         Args:
             stats: Dictionary with execution statistics (keywords, installs, users counts)
@@ -37,6 +38,11 @@ class EmailService:
         Raises:
             Exception: If email sending fails
         """
+        # Check if email alerts are enabled (B6 in Panel de Control)
+        if not settings.SEND_ALERTS:
+            print("[EMAIL] Email alerts disabled (Panel B6 = FALSE). Skipping success notification.")
+            return
+        
         if not settings.validate_email_config():
             print("Warning: Email configuration incomplete. Skipping email notification.")
             return
@@ -65,6 +71,7 @@ class EmailService:
     def send_error_alert(self, error_message: str, execution_date: datetime) -> None:
         """
         Send an error alert email.
+        Controlled by SEND_ALERTS flag (cell B6 in Panel de Control).
         
         Args:
             error_message: The error message to include in the email
@@ -73,6 +80,11 @@ class EmailService:
         Raises:
             Exception: If email sending fails
         """
+        # Check if email alerts are enabled (B6 in Panel de Control)
+        if not settings.SEND_ALERTS:
+            print("[EMAIL] Email alerts disabled (Panel B6 = FALSE). Skipping error notification.")
+            return
+        
         if not settings.validate_email_config():
             print("Warning: Email configuration incomplete. Skipping email notification.")
             return
