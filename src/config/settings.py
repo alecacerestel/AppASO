@@ -25,6 +25,7 @@ class Settings:
     
     # Control flags from Panel de Control (cells B4, B5, B6)
     RUN_BACKUP: bool = os.getenv("RUN_BACKUP", "true").lower() == "true"
+    RUN_BACKUP_DRIVE: bool = os.getenv("RUN_BACKUP_DRIVE", "true").lower() == "true"
     RUN_ML: bool = os.getenv("RUN_ML", "false").lower() == "true"
     SEND_ALERTS: bool = os.getenv("SEND_ALERTS", "true").lower() == "true"
     
@@ -33,8 +34,17 @@ class Settings:
     CONTROL_SHEET_NAME: str = "Config"
     CONTROL_CELL: str = "B3"
     
+    # AppASO root folder in Drive
+    APPASO_ROOT_FOLDER_ID: str = "1wVoXoP9NQC4F4BDPYscNETNSyIEev4Ge"
+    
     # Raw data folder (contains source Excel/CSV files)
     RAW_DATA_FOLDER_ID: str = "1HptFA1vpGiLZaLzZZZO5wI0P3EjKTDlL"
+    
+    # Data Warehouse folder (contains MASTER_DATA_CLEAN)
+    DATA_WAREHOUSE_FOLDER: str = "01_Data_Warehouse"
+    
+    # Data Lake Historic - Single Google Sheet with worksheets per date
+    DATA_LAKE_HISTORIC_SHEET_ID: str = "1tzaLbkXtBxnuKBkVftwN5bW6nEfIYEB12kxXjGaGFko"
     
     # Master data sheet (destination with 3 worksheets)
     MASTER_DATA_SHEET: str = "MASTER_DATA_CLEAN"
@@ -45,26 +55,10 @@ class Settings:
     USERS_SHEET: str = "USERS"
     
     # Historical data lake for daily backups
-    DATA_LAKE_FOLDER: str = "02_Data_Lake_Historic"
+    DATA_LAKE_HISTORIC_FOLDER: str = "02_Data_Lake_Historic"
     
     # Agency start date for business logic (Pre-Agency vs Con-Agency)
     AGENCY_START_DATE: str = "2025-07-15"
-    
-    # Month names mapping
-    MONTH_NAMES: Dict[int, str] = {
-        1: "01_January",
-        2: "02_February",
-        3: "03_March",
-        4: "04_April",
-        5: "05_May",
-        6: "06_June",
-        7: "07_July",
-        8: "08_August",
-        9: "09_September",
-        10: "10_October",
-        11: "11_November",
-        12: "12_December"
-    }
     
     @classmethod
     def get_credentials_dict(cls) -> Dict[str, Any]:

@@ -4,11 +4,7 @@ Handles all interactions with Google Drive and Google Sheets.
 """
 
 import gspread
-from googleapiclient.http import MediaFileUpload, MediaIoBaseUpload
-from datetime import datetime
-from typing import Optional, Dict, Any
-import io
-import pandas as pd
+from typing import Optional, Dict
 
 from src.config import settings
 
@@ -117,77 +113,50 @@ class DriveService:
             
         except Exception as e:
             raise Exception(f"Error checking control panel: {str(e)}")
-
     
-    def save_to_data_lake(self, df: pd.DataFrame, date: datetime, data_type: str) -> None:
+    def get_control_panel_flags(self) -> Dict[str, bool]:
         """
-        Save DataFrame as CSV to the appropriate Data Lake folder.
-        Creates a separate file for each data type (keywords, installs, users).
+        Read all control flags from Panel de Control.
         
-        Args:
-            df: DataFrame to save
-            date: Date to determine folder structure and filename
-            data_type: Type of data ("keywords", "installs", or "users")
+        Returns:
+            Dictionary with control flags:
+            - execute_pipeline (B3): Main ON/OFF switch
+            - run_backup (B4): Enable/disable local and Drive backup
+            - run_ml (B5): Force ML retrain
+            - send_alerts (B6): Enable/disable email notifications
             
         Raises:
-            Exception: If save fails
+            Exception: If control panel cannot be accessed
         """
         try:
-            data_lake_id = self.find_folder_by_name(settings.DATA_LAKE_FOLDER)
+            control_file_id = self.find_file_by_name(settings.CONTROL_PANEL_NAME)
             
-            if not data_lake_id:
-                raise Exception(f"Folder '{settings.DATA_LAKE_FOLDER}' not found")
+            if not control_file_id:
+                raise Exception(f"Control panel '{settings.CONTROL_PANEL_NAME}' not found")
             
-            # Navigate to year folder
-            year_folder = str(date.year)
-            year_id = self.find_folder_by_name(year_folder, data_lake_id)
+            spreadsheet = self.gspread_client.open_by_key(control_file_id)
+            worksheet = spreadsheet.worksheet(settings.CONTROL_SHEET_NAME)
             
-            if not year_id:
-                raise Exception(f"Year folder '{year_folder}' not found in Data Lake")
+            # Read cells B3, B4, B5, B6
+            values = worksheet.batch_get(['B3', 'B4', 'B5', 'B6'])
             
-            # Navigate to month folder
-            month_folder = settings.MONTH_NAMES[date.month]
-            month_id = self.find_folder_by_name(month_folder, year_id)
+            def parse_checkbox(cell_value):
+                """Parse checkbox value to boolean"""
+                if cell_value is None or len(cell_value) == 0 or len(cell_value[0]) == 0:
+                    return False
+                val = cell_value[0][0]
+                if val is True or val == "TRUE":
+                    return True
+                if isinstance(val, str) and val.strip().upper() == "ON":
+                    return True
+                return False
             
-            if not month_id:
-                raise Exception(f"Month folder '{month_folder}' not found in year '{year_folder}'")
-            
-            # Create CSV file in memory
-            csv_buffer = io.StringIO()
-            df.to_csv(csv_buffer, index=False)
-            csv_content = csv_buffer.getvalue()
-            
-            # Upload file with data type in filename
-            filename = f"{data_type}_{date.strftime('%Y%m%d')}.csv"
-            
-            # Check if file already exists
-            existing_file_id = self.find_file_by_name(filename, month_id)
-            
-            file_metadata = {
-                "name": filename,
-                "parents": [month_id]
+            return {
+                'execute_pipeline': parse_checkbox(values[0]),  # B3
+                'run_backup': parse_checkbox(values[1]),        # B4
+                'run_ml': parse_checkbox(values[2]),            # B5
+                'send_alerts': parse_checkbox(values[3])        # B6
             }
             
-            media = MediaIoBaseUpload(
-                io.BytesIO(csv_content.encode("utf-8")),
-                mimetype="text/csv",
-                resumable=True
-            )
-            
-            if existing_file_id:
-                # Update existing file
-                self.drive_service.files().update(
-                    fileId=existing_file_id,
-                    media_body=media
-                ).execute()
-            else:
-                # Create new file
-                self.drive_service.files().create(
-                    body=file_metadata,
-                    media_body=media,
-                    fields="id"
-                ).execute()
-                
         except Exception as e:
-            raise Exception(f"Error saving {data_type} to Data Lake: {str(e)}")
-
+            raise Exception(f"Error reading control panel flags: {str(e)}")

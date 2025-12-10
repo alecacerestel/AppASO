@@ -29,9 +29,12 @@ class ETLPipeline:
         self.transformer = DataTransformer()
         self.loader = DataLoader(drive_service)
     
-    def run(self) -> dict:
+    def run(self, execution_date: datetime = None) -> dict:
         """
         Execute the complete ETL pipeline.
+        
+        Args:
+            execution_date: Optional date to use for execution (defaults to now)
         
         Returns:
             Dictionary with execution statistics
@@ -39,7 +42,8 @@ class ETLPipeline:
         Raises:
             Exception: If any step of the pipeline fails
         """
-        execution_date = datetime.now()
+        if execution_date is None:
+            execution_date = datetime.now()
         
         print("="*70)
         print("AppASO ETL Pipeline - ASO Data Processing")
