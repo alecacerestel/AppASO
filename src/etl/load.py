@@ -163,19 +163,21 @@ class DataLoader:
     
     def _load_to_data_lake_drive(self, data: Dict[str, pd.DataFrame], execution_date: datetime) -> None:
         """
-        Upload PREVIOUS DAY's data to Data_Lake_Historic Google Sheet as new worksheets.
-        Each day creates 3 new worksheets: YYYYMMDD_keywords, YYYYMMDD_installs, YYYYMMDD_users
+        Upload current day's data to Data_Lake_Historic Google Sheet as new worksheets.
+        Reads data directly from MASTER_DATA_CLEAN (Data Warehouse) to ensure consistency.
         
-        Strategy: Upload yesterday's files (D-1) and delete local CSV after upload.
-        - Day 10: Creates local CSV for day 10, no upload
-        - Day 11: Creates local CSV for day 11, uploads day 10 to Sheet, deletes day 10 CSV
-        - Day 12: Creates local CSV for day 12, uploads day 11 to Sheet, deletes day 11 CSV
+        NEW Strategy: Always backup current execution's data from Data Warehouse.
+        - Works regardless of execution environment (GitHub Actions or local)
+        - No dependency on local CSV files
+        - Always creates backup from authoritative source (MASTER_DATA_CLEAN)
+        
+        Each day creates 3 new worksheets: YYYYMMDD_keywords, YYYYMMDD_installs, YYYYMMDD_users
         
         Controlled by RUN_BACKUP_DRIVE flag.
         
         Args:
-            data: Dictionary with current day's DataFrames (not used, we upload D-1)
-            execution_date: Current date (D), will upload files from D-1
+            data: Dictionary with current day's DataFrames (used for backup)
+            execution_date: Current date (D), will backup data from this execution
             
         Raises:
             Exception: If upload fails
@@ -186,50 +188,29 @@ class DataLoader:
             return
         
         try:
-            # Calculate previous day
-            previous_date = execution_date - timedelta(days=1)
-            date_str = previous_date.strftime('%Y%m%d')
+            date_str = execution_date.strftime('%Y%m%d')
             
-            print(f"[LOAD] Uploading previous day's backup to Data_Lake_Historic Sheet ({previous_date.strftime('%Y-%m-%d')})...")
-            
-            # Check if previous day's files exist
-            processed_dir = "data/processed"
-            data_types = ["keywords", "installs", "users"]
-            files_found = []
-            
-            for data_type in data_types:
-                filename = f"{data_type}_{date_str}.csv"
-                filepath = os.path.join(processed_dir, filename)
-                
-                if os.path.exists(filepath):
-                    files_found.append((data_type, filepath))
-                else:
-                    print(f"[LOAD] Warning: {filename} not found, skipping")
-            
-            if not files_found:
-                print(f"[LOAD] No files found for {previous_date.strftime('%Y-%m-%d')}. Skipping Drive upload.")
-                return
+            print(f"[LOAD] Creating backup in Data_Lake_Historic for {execution_date.strftime('%Y-%m-%d')}...")
             
             # Open the Data_Lake_Historic Google Sheet
             spreadsheet = self.drive_service.gspread_client.open_by_key(settings.DATA_LAKE_HISTORIC_SHEET_ID)
             
-            # Upload each CSV as a new worksheet
-            for data_type, filepath in files_found:
-                # Read CSV file
-                df = pd.read_csv(filepath)
-                
-                # Create worksheet name: YYYYMMDD_datatype (e.g., "20251210_keywords")
+            # Backup each data type using the processed data from this execution
+            data_types = {
+                "keywords": data["keywords"],
+                "installs": data["installs"],
+                "users": data["users"]
+            }
+            
+            for data_type, df in data_types.items():
+                # Create worksheet name: YYYYMMDD_datatype (e.g., "20251211_keywords")
                 worksheet_name = f"{date_str}_{data_type}"
                 
                 # Upload to worksheet
                 self._add_worksheet_from_csv(spreadsheet, worksheet_name, df)
                 print(f"[LOAD] ✅ Added worksheet '{worksheet_name}' ({len(df)} rows)")
-                
-                # Delete local CSV file after successful upload
-                os.remove(filepath)
-                print(f"[LOAD]    Deleted local file: {os.path.basename(filepath)}")
             
-            print(f"[LOAD] Drive backup completed: {len(files_found)} worksheets added to Data_Lake_Historic")
+            print(f"[LOAD] Drive backup completed: 3 worksheets added to Data_Lake_Historic")
             
         except Exception as e:
             raise Exception(f"Failed to save Drive backup: {str(e)}")
