@@ -65,17 +65,17 @@ Repository Settings > Secrets and variables > Actions
 ## Implementation Status
 
 ### Completed
-- ✅ Authentication with Google Cloud
-- ✅ Control Panel check (cell B3)
-- ✅ Error handling and email notifications
-- ✅ GitHub Actions workflow setup
+- Authentication with Google Cloud
+- Control Panel check (cell B3)
+- Error handling and email notifications
+- GitHub Actions workflow setup
 
 ### In Progress
-- 🔄 Data extraction from Google Drive
+- Data extraction from Google Drive
 
 ### Pending
-- ⏳ Data transformation (column mapping, Stage logic)
-- ⏳ Data loading (3 worksheets + Data Lake backup)
+- Data transformation (column mapping, Stage logic)
+- Data loading (3 worksheets + Data Lake backup)
 
 ## Project Structure
 

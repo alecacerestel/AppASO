@@ -48,16 +48,13 @@ Thumbs.db
 *.json
 !.github/**/*.json
 
-# Downloaded data files
+# Data directories (raw downloads and processed CSVs)
 data/raw/*.xlsx
-data/raw/*.xls
 data/raw/*.csv
-!data/raw/.gitkeep
-
-# Processed data
 data/processed/*.csv
-data/processed/*.xlsx
-!data/processed/.gitkeep
+
+# ML outputs (forecast predictions)
+ML/MASTER_DATA_FORECAST.csv
 
 # Temporary files
 *.tmp
