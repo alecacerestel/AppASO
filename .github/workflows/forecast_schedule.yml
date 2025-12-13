@@ -32,7 +32,7 @@ jobs:
       - name: Run ETL Pipeline first to generate data
         env:
           GCP_JSON: ${{ secrets.GCP_JSON }}
-          RUN_BACKUP: 'false'
+          RUN_BACKUP: 'true'
           SEND_ALERTS: 'false'
         run: |
           python etl_pipeline.py
