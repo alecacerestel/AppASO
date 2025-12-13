@@ -29,6 +29,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
       
+      - name: Run ETL Pipeline first to generate data
+        env:
+          GCP_JSON: ${{ secrets.GCP_JSON }}
+          RUN_BACKUP: 'false'
+          SEND_ALERTS: 'false'
+        run: |
+          python etl_pipeline.py
+      
       - name: Run forecasting pipeline
         env:
           GCP_JSON: ${{ secrets.GCP_JSON }}
