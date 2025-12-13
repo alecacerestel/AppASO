@@ -97,13 +97,4 @@ jobs:
             *.txt
           retention-days: 30
       
-      - name: Commit ML forecast if generated
-        if: github.event.inputs.run_ml == 'true'
-        run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "GitHub Actions Bot"
-          git add ML/MASTER_DATA_FORECAST.csv
-          git diff --staged --quiet || git commit -m "chore: update ML forecast [automated]"
-          git push
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
