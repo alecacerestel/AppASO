@@ -1,11 +1,7 @@
 """
-Machine Learning Forecasting Pipeline for App Installs
-Author: Senior Data Engineer & ML Specialist
-Date: December 2025
-
 This script trains Linear Regression models to forecast app installs
 for the upcoming month, separately for Google and Apple platforms.
-Writes results to MASTER_DATA_CLEAN Google Sheet as a new "FORECAST" worksheet.
+Writes results to MASTER_DATA_CLEAN Google Sheet as a new "FORECAST" 
 """
 
 import os
